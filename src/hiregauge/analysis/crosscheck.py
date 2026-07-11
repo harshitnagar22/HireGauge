@@ -10,7 +10,6 @@ account for them) and Evaluation.red_flags.
 from __future__ import annotations
 
 import re
-from typing import Sequence
 
 from ..models import CandidateProfile
 
@@ -34,7 +33,7 @@ _STAR_CLAIM_RE = re.compile(
     r")"
 )
 
-# Commonly exaggerated star thresholds — claims above these are suspect.
+# Commonly exaggerated star thresholds – claims above these are suspect.
 _STAR_INFLATION_MULTIPLIER = 2.0
 _STAR_INFLATION_ABSOLUTE = 10  # claim must exceed fetched by at least this many
 
@@ -107,8 +106,8 @@ _VENUE_KEYWORDS = re.compile(
     r"first.author|co.author|coauthor|"
     r"preprint|manuscript|under review|accepted at|"
     r"IEEE|ACM|Springer|Elsevier|"
-    r"journal of|transactions on|"
-    r"[Pp]aper\s+(?:titled|entitled|:)|My\s+(?:research|publication|paper)"
+    r"journal of|transactios on|"
+    r"[Pp]aper\s+(?:](?:titled|entitled|:)|My\s+(?:research|publication|paper)"
     r")"
 )
 
@@ -157,7 +156,7 @@ def crosscheck_claims(profile: CandidateProfile) -> list[str]:
     never raises, returns [] on any error or missing data).
 
     Currently checks:
-    - Star-count inflation (resume claims ≫ fetched max_stars)
+    - Star-count inflation (resume claims vs fetched max_stars)
     - Phantom publications (resume references papers while fetched profile has none)
     """
     try:
