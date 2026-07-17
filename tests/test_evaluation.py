@@ -6,14 +6,6 @@ from typing import Any
 
 from hiregauge.agents import get_agent
 from hiregauge.evaluator import _assemble, _RubricDimension, _RubricOutput
-from hiregauge.models import (
-    CandidateProfile,
-    GitHubRepo,
-    GitHubSignal,
-    Publication,
-    PublicationSignal,
-    ResumeSignal,
-)
 from hiregauge.pipeline import RunConfig, run
 
 
@@ -159,7 +151,7 @@ def test_pipeline_full_marks_offline(tmp_path):
     agent = get_agent("general")
     scores = {d.key: d.weight for d in agent.dimensions}
     resume = tmp_path / "r.txt"
-    resume.write_text("Jane Doe  jane@example.com  Senior engineer, 6 yoe.", encoding="utf-8")
+    resume.write_text("Jane Doe jane@example.com  Senior engineer, 6 yoe.", encoding="utf-8")
     cfg = RunConfig(agent="general", resume=str(resume), no_cache=True)
     report = run(cfg, provider=FakeProvider(scores))
     assert report.evaluation.overall_score == 100.0
