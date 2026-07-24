@@ -37,6 +37,23 @@ _STAR_CLAIM_RE = re.compile(
 _STAR_INFLATION_MULTIPLIER = 2.0
 _STAR_INFLATION_ABSOLUTE = 10  # claim must exceed fetched by at least this many
 
+# Resumes are bullet-heavy, so treat newlines as clause boundaries too.
+_SEGMENT_RE = re.compile(r"[.\n;!?]+")
+
+# The candidate claiming the artifact as their own work. Without one of these,
+# a star count is just describing some repo, not claiming credit for it.
+_OWNERSHIP_RE = re.compile(
+    r"(?i)\b(?:my|our"
+    r"|i\s+(?:built|created|wrote|authored|developed|maintain|maintained"
+    r"|released|open-sourced|published|started|founded))\b"
+)
+
+# Explicit signals the repo belongs to somebody else.
+_THIRD_PARTY_RE = re.compile(
+    r"(?i)\b(?:contribut(?:e|ed|ing|or|ors|ion|ions)|used\s+by|fork(?:ed)?\s+of"
+    r"|pull\s+requests?\s+to|patch(?:es)?\s+to|merged\s+into|upstream)\b"
+)
+
 
 def _parse_num(raw: str) -> float | None:
     """Parse a compact number like "1,000" or "2.5" into a float."""
@@ -61,27 +78,29 @@ def _check_star_inflation(profile: CandidateProfile) -> list[str]:
     if max_stars is None:
         return []
 
-    text = profile.resume.text
-    matches = _STAR_CLAIM_RE.findall(text)
-    if not matches:
-        return []
-
     issues: list[str] = []
-    for match_group in matches:
-        # The regex alternation means one of the two groups is non-empty.
-        raw_num = match_group[1] or match_group[2]
-        if not raw_num:
+    # Attribute each claim to the clause it appears in: a star count only counts
+    # against the candidate if that clause claims the repo as their own work.
+    for segment in _SEGMENT_RE.split(profile.resume.text):
+        if not _OWNERSHIP_RE.search(segment) or _THIRD_PARTY_RE.search(segment):
             continue
-        claimed = _parse_num(raw_num)
-        if claimed is None or claimed <= 0:
-            continue
+        for match_group in _STAR_CLAIM_RE.findall(segment):
+            # The regex alternation means one of the two groups is non-empty.
+            raw_num = match_group[1] or match_group[2]
+            if not raw_num:
+                continue
+            claimed = _parse_num(raw_num)
+            if claimed is None or claimed <= 0:
+                continue
 
-        # Only flag if claim clearly exceeds fetched reality.
-        if claimed > max(max_stars * _STAR_INFLATION_MULTIPLIER + _STAR_INFLATION_ABSOLUTE, 1):
-            issues.append(
-                f"Star-count inflation detected: resume claims {claimed:g}+ stars "
-                f"but fetched GitHub data shows max_stars={max_stars:g} across owned repos."
-            )
+            # Only flag if claim clearly exceeds fetched reality.
+            if claimed > max(
+                max_stars * _STAR_INFLATION_MULTIPLIER + _STAR_INFLATION_ABSOLUTE, 1
+            ):
+                issues.append(
+                    f"Star-count inflation detected: resume claims {claimed:g}+ stars "
+                    f"but fetched GitHub data shows max_stars={max_stars:g} across owned repos."
+                )
 
     return issues
 
@@ -114,6 +133,23 @@ _VENUE_KEYWORDS = re.compile(
 # Minimum threshold: how many different venue keywords before we consider it a real claim.
 _MIN_VENUE_HITS = 2
 
+# The candidate claiming authorship. Naming a venue is not claiming a paper in it.
+_AUTHORSHIP_RE = re.compile(
+    r"(?i)\b(?:i\s+(?:published|authored|wrote|presented)"
+    r"|my\s+(?:paper|papers|publication|publications|research|work|thesis|dissertation)"
+    r"|our\s+(?:paper|papers|publication|publications|work)"
+    r"|(?:first|co|sole|lead)[\s.-]?authored?"
+    r"|published\s+(?:in|at|a|an|the|paper|work|article)"
+    r"|accepted\s+(?:at|to|in)|preprint|under\s+review)"
+)
+
+# Roles that involve venues without authoring anything published there.
+_NON_AUTHOR_ROLE_RE = re.compile(
+    r"(?i)\b(?:review(?:er|ed|ing)\s+for|peer.review|program\s+committee|pc\s+member"
+    r"|attend(?:ed|ing|ee)|volunteer(?:ed)?|organiz(?:er|ed|ing)"
+    r"|stud(?:y|ied|ying)\s+papers|read(?:ing)?\s+papers|interested\s+in)\b"
+)
+
 
 def _check_phantom_publications(profile: CandidateProfile) -> list[str]:
     """Check if the resume mentions publications while fetched data shows none."""
@@ -128,6 +164,12 @@ def _check_phantom_publications(profile: CandidateProfile) -> list[str]:
         return []
 
     text = profile.resume.text
+
+    # Only a claim of authorship can be contradicted by an empty publication
+    # record. Reviewing at, attending, or reading work from a venue is not one.
+    if not _AUTHORSHIP_RE.search(text) or _NON_AUTHOR_ROLE_RE.search(text):
+        return []
+
     matches = _VENUE_KEYWORDS.findall(text)
 
     # Deduplicate to unique matches (lowercase).

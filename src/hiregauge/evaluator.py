@@ -8,7 +8,7 @@ computed deterministically in code from those per-dimension scores.
 
 from __future__ import annotations
 
-from pydantic import BaseModel, ValidationError
+from pydantic import BaseModel
 
 from .agents import Agent
 from .analysis import crosscheck_claims, signal_strengths

@@ -184,3 +184,53 @@ def test_both_checks_fire_independently():
 def test_exception_returns_empty():
     # Passing something that would cause an error should return [].
     assert crosscheck_claims(CandidateProfile()) == []
+
+
+# ---------------------------------------------------------------------------
+# Attribution guards: only the candidate's OWN claims may be flagged.
+#
+# These strings go straight into Evaluation.red_flags, bypassing the LLM, so a
+# false positive accuses an honest candidate of inflating their record. Merely
+# *mentioning* a big repo or a venue is not a claim of ownership/authorship.
+# ---------------------------------------------------------------------------
+
+
+def test_third_party_repo_stars_not_flagged():
+    # Describing a repo the candidate contributed to but does not own.
+    profile = _profile_with_github(
+        "Contributed to TensorFlow (180,000 stars).", max_stars=5
+    )
+    assert crosscheck_claims(profile) == []
+
+
+def test_downstream_usage_stars_not_flagged():
+    profile = _profile_with_github(
+        "Built a tool used by repos with 900 stars.", max_stars=5
+    )
+    assert crosscheck_claims(profile) == []
+
+
+def test_reviewer_role_not_flagged_as_authorship():
+    profile = _profile_with_pubs("Reviewer for NeurIPS and ICML workshops.", n_pubs=0)
+    assert crosscheck_claims(profile) == []
+
+
+def test_reading_interest_not_flagged_as_authorship():
+    profile = _profile_with_pubs(
+        "I study papers from NeurIPS, ICML, and CVPR.", n_pubs=0
+    )
+    assert crosscheck_claims(profile) == []
+
+
+def test_owned_star_claim_still_flagged():
+    # Regression guard: real inflation about the candidate's OWN repo must survive.
+    profile = _profile_with_github("My project has over 1,000+ stars!", max_stars=12)
+    assert len(crosscheck_claims(profile)) == 1
+
+
+def test_authored_publication_claim_still_flagged():
+    # Regression guard: real phantom authorship must survive.
+    profile = _profile_with_pubs(
+        "I published a first-author paper at NeurIPS and another at ICML.", n_pubs=0
+    )
+    assert len(crosscheck_claims(profile)) == 1
